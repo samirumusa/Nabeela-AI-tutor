@@ -1,8 +1,11 @@
 # Cloud image builds: first stage
 
+Update: a combined worker image and Vast adapter are now implemented in
+[`../worker/README.md`](../worker/README.md), with GPU validation still pending.
+The three-service Compose stack below remains available for isolated diagnostics.
+
 This packages Qwen3-8B-AWQ (4-bit), the existing FastAPI/faster-whisper backend,
-and Kokoro as three isolated Linux amd64 GPU services. It does not yet implement
-the combined Vast serverless worker. No paid resources are launched by these files.
+and Kokoro as three isolated Linux amd64 GPU services. No paid resources are launched by these files.
 The application still uses MockTutorProvider: Qwen is tested directly through its
 OpenAI-compatible endpoint. Existing endpoints and local defaults are unchanged.
 No database migrations apply. N-ATLaS and Hausa TTS are outside this image set.
@@ -79,9 +82,9 @@ Compose shutdown does not stop Vast host billing.
 This Compose stack is for a Docker-capable cloud host. A normal Vast Docker
 container does not automatically support running Compose inside it. Do not paste
 one of these images into Vast Serverless expecting the entire stack to run.
-The next stage needs a custom PyWorker and process supervisor (or a supported
-multi-service VM deployment), readiness integration, secret injection and metering.
-No fabricated template ID or worker launch command is supplied here.
+Use the combined worker image described in ../worker/README.md for the new Vast
+adapter. Its process supervisor and readiness checks are implemented but require
+an authenticated GPU smoke test before production use.
 
 References:
 - https://huggingface.co/Qwen/Qwen3-8B-AWQ

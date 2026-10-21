@@ -7,13 +7,21 @@ from app.models import ChatRequest, SpeakRequest, VoiceTurnRequest
 from app.providers.tutor import MockTutorProvider
 from app.providers.tts import KokoroTTSProvider
 from app.providers.asr import FasterWhisperASRProvider
+from app.config import settings
+from app.providers.qwen import QwenTutorProvider
 
 app = FastAPI(title="Nabeela Backend", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-tutor = MockTutorProvider()
+tutor = QwenTutorProvider() if settings.tutor_provider == "qwen" else MockTutorProvider()
 tts = KokoroTTSProvider()
 asr = FasterWhisperASRProvider()
+
+async def tutor_answer(message, language):
+    try:
+        return await tutor.chat(message, language)
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        raise HTTPException(502, "Tutor provider unavailable or returned an invalid response")
 
 @app.get("/")
 async def root():
@@ -21,11 +29,11 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "asr": "faster-whisper", "tutor": "mock-natlas", "tts": "kokoro"}
+    return {"status": "healthy", "asr": "faster-whisper", "tutor": "qwen" if settings.tutor_provider == "qwen" else "mock-natlas", "tts": "kokoro"}
 
 @app.post("/api/tutor/chat")
 async def chat(req: ChatRequest):
-    return await tutor.chat(req.message, req.language)
+    return await tutor_answer(req.message, req.language)
 
 @app.post("/api/voice/speak")
 async def speak(req: SpeakRequest):
@@ -37,7 +45,7 @@ async def speak(req: SpeakRequest):
 
 @app.post("/api/voice/turn")
 async def turn(req: VoiceTurnRequest):
-    answer = await tutor.chat(req.message, req.language)
+    answer = await tutor_answer(req.message, req.language)
     try:
         audio, ctype = await tts.synthesize(answer.text, req.voice)
         # Do not place Hausa tutor text in HTTP headers; headers are not a safe Unicode transport.
@@ -78,7 +86,7 @@ async def voice_conversation(
             raise HTTPException(422, "No speech was detected")
 
         tutor_language = transcript["detected_language"] if transcript["detected_language"] in {"en", "ha"} else "auto"
-        answer = await tutor.chat(transcript["text"], tutor_language)
+        answer = await tutor_answer(transcript["text"], tutor_language)
         output_audio, ctype = await tts.synthesize(answer.text, voice)
 
         return {
@@ -90,7 +98,7 @@ async def voice_conversation(
             "audio_base64": base64.b64encode(output_audio).decode("ascii"),
             "audio_content_type": ctype,
             "asr_provider": "faster-whisper",
-            "tutor_provider": "mock-natlas",
+            "tutor_provider": answer.provider,
             "tts_provider": "kokoro",
         }
     except HTTPException:

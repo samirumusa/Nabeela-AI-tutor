@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        service: [backend, qwen, kokoro]
+        service: [backend, qwen, kokoro, worker]
     steps:
       - uses: actions/checkout@v4
       - name: Release image name

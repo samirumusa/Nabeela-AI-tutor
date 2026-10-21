@@ -3,4 +3,4 @@ Current development is local. Kokoro runs as a separate Docker service on port 7
 
 Cloud image definitions, a manual GHCR build workflow, and GPU test instructions
 are now in [docker/README.md](docker/README.md). The Vast serverless worker integration
-is not implemented yet; these images are the first packaging stage.
+is implemented in [worker/README.md](worker/README.md) and awaits GPU validation.
