@@ -1,0 +1,46 @@
+# GPU Linux test host only. This is NOT a Vast serverless worker template.
+services:
+  qwen:
+    image: ${NABEELA_IMAGE_PREFIX:?Set registry prefix}/nabeela-qwen:${NABEELA_IMAGE_TAG:?Set release tag}
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/qwen.Dockerfile
+    gpus: all
+    shm_size: 2gb
+    volumes:
+      - qwen-models:/root/.cache/huggingface
+    ports:
+      - "127.0.0.1:8001:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20m
+      retries: 3
+  kokoro:
+    image: ${NABEELA_IMAGE_PREFIX:?Set registry prefix}/nabeela-kokoro:${NABEELA_IMAGE_TAG:?Set release tag}
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/kokoro.Dockerfile
+    gpus: all
+    ports:
+      - "127.0.0.1:7860:8880"
+  backend:
+    image: ${NABEELA_IMAGE_PREFIX:?Set registry prefix}/nabeela-backend:${NABEELA_IMAGE_TAG:?Set release tag}
+    build:
+      context: ../..
+      dockerfile: infrastructure/docker/backend.Dockerfile
+    gpus: all
+    environment:
+      KOKORO_BASE_URL: http://kokoro:8880
+      WHISPER_MODEL: small
+      WHISPER_DEVICE: cuda
+      WHISPER_COMPUTE_TYPE: int8_float16
+      WHISPER_CPU_THREADS: "8"
+    volumes:
+      - whisper-models:/models/huggingface
+    ports:
+      - "127.0.0.1:8000:8000"
+volumes:
+  qwen-models:
+  whisper-models:

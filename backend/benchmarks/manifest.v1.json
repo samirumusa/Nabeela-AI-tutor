@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "cases": [
+    {"id": "ha-001", "category": "hausa", "audio": "audio/ha-001.wav", "consented": true, "reference": "Ina son koyon Turanci.", "language": "ha"},
+    {"id": "accent-001", "category": "hausa_accented_english", "audio": "audio/accent-001.wav", "consented": true, "reference": "I would like to buy some oranges at the market.", "language": "auto"},
+    {"id": "mixed-001", "category": "code_switching", "audio": "audio/mixed-001.wav", "consented": true, "reference": "Ina so in ce I went to the market yesterday.", "language": "auto"},
+    {"id": "error-001", "category": "learner_errors", "audio": "audio/error-001.wav", "consented": true, "reference": "Yesterday I go market.", "language": "auto", "error_checks": [{"spoken": "I go market", "corrections": ["I went to the market", "I went market", "I go to the market"]}]}
+  ]
+}
