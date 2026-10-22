@@ -42,9 +42,40 @@ The supervisor loads Qwen first with half the GPU budget, 4K context, one sequen
 and eager mode. It then loads Kokoro and warms ASR -> Qwen -> Kokoro using generated
 English audio. It starts the gateway and PyWorker only after success. A child exit
 terminates all other services; SIGTERM/SIGINT stop children with a bounded grace
-period. Logs are under `/tmp/nabeela-*.log`; do not publish them with learner data.
+period. Service stdout and stderr are streamed to the main container log with
+`[qwen]`, `[kokoro]`, `[backend]`, `[gateway]`, and `[vast]` prefixes. Copies remain
+under `/tmp/nabeela-*.log`. Known secret environment values (tokens, passwords,
+secrets and API keys at least eight characters long) are redacted in both copies;
+this is not a guarantee that third-party logs contain no sensitive data. Inspect
+logs before sharing. No SSH server or public diagnostic port is needed.
+
+The supervisor prints a start/ready message per service, a waiting update every
+30 seconds during readiness polling, warmup stage messages, and subprocess exit
+codes. Long warmup requests can be quiet for up to their 300-second timeout.
+Look at container/application logs rather than only the host's image-pull logs.
+These messages begin only after Docker has downloaded and started the image;
+they cannot diagnose a stalled image pull. The final models-warmed message means
+the Vast process was launched, not that the endpoint has accepted authentication.
+
+Rebuild and publish after pushing these changes, then update the template to the
+new commit tag. Existing containers keep the old logging behavior until recreated.
 
 ## Calling the endpoint
+
+From repository root on Windows, install only the client SDK and send one short,
+consented English recording (this incurs cloud usage):
+
+```powershell
+.\backend\.venv\Scripts\python.exe -m pip install vastai
+.\backend\.venv\Scripts\python.exe infrastructure/worker/test_endpoint.py backend/benchmarks/audio/error-001.wav --endpoint qr6suj00 --output tutor-reply.wav
+```
+
+The client prompts for the Vast account API key with hidden input (or reads
+VAST_API_KEY). No model weights download to this PC. It prints transcript, tutor
+reply and timings, and saves WAV audio without overwriting an existing file.
+It sends one request, with retries disabled and a 360-second overall deadline.
+Client timeout does not shut down the GPU or guarantee cancellation of inference.
+Stop the endpoint separately when finished. Keep returned learner information private.
 
 The initial Vast route is POST `/voice` with JSON:
 

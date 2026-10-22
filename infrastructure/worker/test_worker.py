@@ -1,15 +1,74 @@
 import asyncio
 import base64
 import unittest
+import io
+import sys
+import tempfile
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 import httpx
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from infrastructure.worker import gateway
-from infrastructure.worker.supervise import wait_ready, stop_children
+from infrastructure.worker.supervise import wait_ready, stop_children, launch_service, relay_output
+from infrastructure.worker.test_endpoint import extract_reply, send, safe_error
 
 
 class WorkerTests(unittest.TestCase):
+    def test_error_details_redact_credentials(self):
+        message = safe_error(Exception("Failed HTTP 401 https://host?api_key=secret-value Authorization: Bearer secret-value"), "secret-value")
+        self.assertIn("HTTP 401", message)
+        self.assertNotIn("secret-value", message)
+        self.assertNotIn("https://host", message)
+
+    def test_cloud_client_unwraps_and_validates_wav(self):
+        wav = b"RIFF" + b"\0" * 4 + b"WAVE" + b"\0" * 32
+        result, audio = extract_reply({"response": {"tutor_text": "Try again", "audio_base64": base64.b64encode(wav).decode()}})
+        self.assertEqual(audio, wav)
+        self.assertEqual(result["tutor_text"], "Try again")
+        with self.assertRaises(ValueError):
+            extract_reply({"response": {"detail": "unavailable"}})
+
+    def test_cloud_client_disables_automatic_retries(self):
+        endpoint = AsyncMock()
+        asyncio.run(send(endpoint, b"wav", 10))
+        self.assertEqual(endpoint.request.call_args.args[0], "/voice")
+        self.assertFalse(endpoint.request.call_args.kwargs["retry"])
+        self.assertEqual(endpoint.request.call_args.kwargs["cost"], 1)
+
+    def test_child_stdout_stderr_stream_to_console_and_file(self):
+        children, relays = [], []
+        console = io.StringIO()
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "service.log"
+            log = path.open("a", encoding="utf-8")
+            with patch("infrastructure.worker.supervise.open", return_value=log), \
+                 patch("infrastructure.worker.supervise.sys.stdout", console), \
+                 patch.dict("os.environ", {"MASTER_TOKEN": "private-test-token"}):
+                child = launch_service("test", [sys.executable, "-u", "-c",
+                    "import sys; print('model loading'); print('private-test-token', file=sys.stderr)"], children, relays)
+                self.assertEqual(child.wait(timeout=10), 0)
+                relays[0].join(timeout=5)
+            self.assertFalse(relays[0].is_alive())
+            self.assertIn("[test] model loading", console.getvalue())
+            self.assertIn("[REDACTED]", console.getvalue())
+            self.assertNotIn("private-test-token", console.getvalue())
+            self.assertIn("model loading", path.read_text())
+            self.assertNotIn("private-test-token", path.read_text())
+            self.assertTrue(log.closed)
+
+    def test_closed_console_does_not_prevent_log_drain(self):
+        from unittest.mock import Mock
+        class RetainedLog(io.StringIO):
+            def close(self):
+                self.saved = self.getvalue()
+                super().close()
+        console = Mock()
+        console.write.side_effect = BrokenPipeError()
+        log = RetainedLog()
+        relay_output("test", io.BytesIO(b"first\nsecond\n"), log, console, ())
+        self.assertEqual(log.saved, "first\nsecond\n")
+
     def test_invalid_audio_never_reaches_backend(self):
         response = TestClient(gateway.app).post("/voice", json={"audio_base64": "!invalid!"})
         self.assertEqual(response.status_code, 400)
