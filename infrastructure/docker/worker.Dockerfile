@@ -6,7 +6,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3-venv es
 RUN python3 -m venv --system-site-packages /opt/voice
 COPY backend/requirements.txt /tmp/backend-requirements.txt
 RUN /opt/voice/bin/pip install --no-cache-dir -r /tmp/backend-requirements.txt \
-    kokoro==0.9.4 soundfile==0.13.1 vastai nvidia-cudnn-cu12
+    kokoro==0.9.4 soundfile==0.13.1 vastai nvidia-cudnn-cu12 \
+    spacy==3.8.7 preshed==3.0.10
 # Install Kokoro's English NLP dependency at build time, not on a cold worker.
 # This model supports spaCy >=3.8,<3.9; let pip enforce that compatibility.
 RUN /opt/voice/bin/pip install --no-cache-dir \

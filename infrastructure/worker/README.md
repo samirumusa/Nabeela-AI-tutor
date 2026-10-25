@@ -27,8 +27,12 @@ installed from its versioned upstream wheel (compatible with spaCy >=3.8,<3.9).
 It is not committed to Git. The Docker build loads and exercises its tokenizer
 using the same preflight as startup, without a GPU or Qwen/Kokoro weight download.
 A missing model or tokenizer load failure now fails the build before publication.
-This addresses the preflight E050 missing-model error; it does not establish that
-the earlier tokenizer OverflowError or full GPU pipeline has been resolved.
+The failed Actions run 40206846696 confirmed that spaCy 3.8.16 with preshed 3.0.14
+still overflows in tokenizer deserialization with the model installed. The worker
+now pins spaCy 3.8.7 and preshed 3.0.10 as a candidate compatibility rollback;
+the build preflight must pass before treating this combination as validated.
+These pins apply only to the worker's speech environment. Keep the preflight:
+neither unit tests nor a successful import establish tokenizer/GPU compatibility.
 
 ## Vast template
 
