@@ -60,6 +60,41 @@ the Vast process was launched, not that the endpoint has accepted authentication
 Rebuild and publish after pushing these changes, then update the template to the
 new commit tag. Existing containers keep the old logging behavior until recreated.
 
+## Diagnosing speech startup without a shell
+
+The image entrypoint now prints `[speech-preflight]` dependency versions and loads
+the English spaCy tokenizer before Qwen starts. A tokenizer failure exits immediately
+with its traceback, avoiding repeated Qwen loading before the same Kokoro failure.
+This check does not fix dependencies or download models. Rebuild/publish and select
+the new image digest to use it.
+
+For an existing image, put the following in a Vast startup-script facility that
+runs shell commands **before** the image entrypoint. Confirm that facility's execution
+order; do not launch a second supervisor if the entrypoint already runs one:
+
+```bash
+#!/bin/bash
+/opt/voice/bin/python -u - <<'PY'
+import importlib.metadata as metadata
+import platform
+print('[speech-diagnostic] Python', platform.python_version(), flush=True)
+for name in ('kokoro', 'misaki', 'spacy', 'thinc', 'cymem', 'preshed', 'murmurhash', 'numpy', 'en-core-web-sm'):
+    try:
+        version = metadata.version(name)
+    except metadata.PackageNotFoundError:
+        version = 'NOT INSTALLED'
+    print(f'[speech-diagnostic] {name}={version}', flush=True)
+import spacy
+spacy.load('en_core_web_sm')
+print('[speech-diagnostic] English tokenizer OK', flush=True)
+PY
+```
+
+Read container/application logs for these lines and the traceback. The inline
+script works with older images without the new preflight module. It deliberately
+does not install or upgrade packages at startup. Installed versions are needed
+before selecting a reproducible dependency fix.
+
 ## Calling the endpoint
 
 From repository root on Windows, install only the client SDK and send one short,
