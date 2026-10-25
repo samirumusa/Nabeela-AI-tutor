@@ -7,9 +7,14 @@ RUN python3 -m venv --system-site-packages /opt/voice
 COPY backend/requirements.txt /tmp/backend-requirements.txt
 RUN /opt/voice/bin/pip install --no-cache-dir -r /tmp/backend-requirements.txt \
     kokoro==0.9.4 soundfile==0.13.1 vastai nvidia-cudnn-cu12
+# Install Kokoro's English NLP dependency at build time, not on a cold worker.
+# This model supports spaCy >=3.8,<3.9; let pip enforce that compatibility.
+RUN /opt/voice/bin/pip install --no-cache-dir \
+    https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
 WORKDIR /app
 COPY backend/app /app/app
 COPY infrastructure/worker /app/infrastructure/worker
+RUN /opt/voice/bin/python -u -m infrastructure.worker.speech_preflight
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 HF_HOME=/models/huggingface \
     TUTOR_PROVIDER=qwen QWEN_BASE_URL=http://127.0.0.1:8001/v1 \
     KOKORO_BASE_URL=http://127.0.0.1:7860 WHISPER_DEVICE=cuda \

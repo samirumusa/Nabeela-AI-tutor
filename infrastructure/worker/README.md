@@ -22,6 +22,14 @@ vLLM and speech runtime dependencies coexist; measure its extracted size and mod
 download footprint before renting disk. Model weights download at worker startup,
 not during cloud build, into `/models/huggingface`.
 
+The small `en_core_web_sm` 3.8.0 spaCy pipeline is an explicit image dependency
+installed from its versioned upstream wheel (compatible with spaCy >=3.8,<3.9).
+It is not committed to Git. The Docker build loads and exercises its tokenizer
+using the same preflight as startup, without a GPU or Qwen/Kokoro weight download.
+A missing model or tokenizer load failure now fails the build before publication.
+This addresses the preflight E050 missing-model error; it does not establish that
+the earlier tokenizer OverflowError or full GPU pipeline has been resolved.
+
 ## Vast template
 
 - Docker ENTRYPOINT launch mode; use the new worker image, not the three old images.
