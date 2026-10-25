@@ -74,6 +74,13 @@ new commit tag. Existing containers keep the old logging behavior until recreate
 
 ## Diagnosing speech startup without a shell
 
+The preflight also decodes a generated 24 kHz PCM WAV through faster-whisper's
+actual decoder and resamples it to 16 kHz, without ASR model weights or a GPU.
+Backend requirements constrain PyAV to `>=11,<19` because older faster-whisper
+releases pass `metadata_errors`, removed in PyAV 19. This applies to local and
+container installs. Reinstall requirements locally when updating; rebuild the
+worker image for Vast. Decoder errors now fail the image build before deployment.
+
 HTTP warmup failures now log the stage, status and bounded backend JSON `detail`
 before shutdown, with known environment secrets redacted. Successful warmup
 transcripts and audio are not logged. A generic HTTP 500 alone does not identify
