@@ -1,5 +1,9 @@
 # Development Roadmap
 
+## Planned classroom track
+
+See [OpenMAIC integration plan](OPENMAIC_INTEGRATION_PLAN.md). After the voice baseline, evaluate OpenMAIC in an isolated, pinned-version spike. Build the connected classroom pilot after session persistence and curriculum/evidence foundations. Start with one learner, an AI teacher and one AI classmate; Nabeela retains mastery authority. This is a proposed track, not an enabled runtime dependency.
+
 ## Phase 0 — Baseline (current)
 - FastAPI service
 - Mock tutor provider
