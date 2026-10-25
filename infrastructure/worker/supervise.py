@@ -23,6 +23,21 @@ def secret_values():
                  and len(value) >= 8)
 
 
+def check_warmup_response(response, stage):
+    """Report startup errors without logging successful audio or transcripts."""
+    if response.is_error:
+        try:
+            detail = response.json().get("detail", "No error detail returned")
+        except (ValueError, AttributeError):
+            detail = "Non-JSON error response; inspect service logs"
+        detail = str(detail)
+        for value in secret_values():
+            detail = detail.replace(value, "[REDACTED]")
+        detail = detail.replace("\r", " ").replace("\n", " ")[:2000]
+        progress(f"{stage} failed: HTTP {response.status_code}; {detail}")
+    response.raise_for_status()
+
+
 def relay_output(name, pipe, logfile, output, secrets):
     """Drain continuously so a verbose child cannot block on a full stdout pipe."""
     try:
@@ -115,12 +130,12 @@ def main():
         progress("Generating English warmup audio (request timeout: 300 seconds)")
         with httpx.Client(timeout=300) as client:
             result = client.post("http://127.0.0.1:7860/v1/audio/speech", json={"input": "Yesterday I went to the market.", "voice": "af_heart"})
-            result.raise_for_status()
+            check_warmup_response(result, "English audio warmup")
             Path("/tmp/nabeela-benchmark.wav").write_bytes(result.content)
             # Exercise all services before advertising readiness.
             progress("Warming Whisper -> Qwen -> Kokoro (request timeout: 300 seconds)")
             result = client.post("http://127.0.0.1:8000/api/voice/conversation", files={"audio": ("warmup.wav", result.content)}, data={"language": "en"})
-            result.raise_for_status()
+            check_warmup_response(result, "Voice conversation warmup")
         launch("gateway", [VOICE_PYTHON, "-m", "uvicorn", "infrastructure.worker.gateway:app", "--host", "127.0.0.1", "--port", "18000"])
         wait_ready("http://127.0.0.1:18000/ready", children, deadline, "voice gateway")
         Path("/tmp/nabeela-ready.log").write_text("NABEELA_READY\n")

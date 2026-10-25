@@ -10,11 +10,28 @@ import httpx
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from infrastructure.worker import gateway
-from infrastructure.worker.supervise import wait_ready, stop_children, launch_service, relay_output
+from infrastructure.worker.supervise import wait_ready, stop_children, launch_service, relay_output, check_warmup_response
 from infrastructure.worker.test_endpoint import extract_reply, send, safe_error
 
 
 class WorkerTests(unittest.TestCase):
+    def test_warmup_error_reports_redacted_detail(self):
+        response = httpx.Response(500, json={"detail": "ASR failed private-test-token"},
+                                  request=httpx.Request("POST", "http://localhost/warmup"))
+        with patch.dict("os.environ", {"MASTER_TOKEN": "private-test-token"}), \
+             patch("infrastructure.worker.supervise.progress") as output:
+            with self.assertRaises(httpx.HTTPStatusError):
+                check_warmup_response(response, "Voice conversation warmup")
+        self.assertIn("ASR failed [REDACTED]", output.call_args.args[0])
+        self.assertNotIn("private-test-token", output.call_args.args[0])
+
+    def test_successful_warmup_does_not_log_payload(self):
+        response = httpx.Response(200, json={"transcript": "private"},
+                                  request=httpx.Request("POST", "http://localhost/warmup"))
+        with patch("infrastructure.worker.supervise.progress") as output:
+            check_warmup_response(response, "warmup")
+        output.assert_not_called()
+
     def test_error_details_redact_credentials(self):
         message = safe_error(Exception("Failed HTTP 401 https://host?api_key=secret-value Authorization: Bearer secret-value"), "secret-value")
         self.assertIn("HTTP 401", message)

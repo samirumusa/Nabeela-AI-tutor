@@ -74,6 +74,11 @@ new commit tag. Existing containers keep the old logging behavior until recreate
 
 ## Diagnosing speech startup without a shell
 
+HTTP warmup failures now log the stage, status and bounded backend JSON `detail`
+before shutdown, with known environment secrets redacted. Successful warmup
+transcripts and audio are not logged. A generic HTTP 500 alone does not identify
+the failing speech component; use this detail and preceding service logs.
+
 The image entrypoint now prints `[speech-preflight]` dependency versions and loads
 the English spaCy tokenizer before Qwen starts. A tokenizer failure exits immediately
 with its traceback, avoiding repeated Qwen loading before the same Kokoro failure.
